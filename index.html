@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scene Editor — SAP Security, Fiori & GRC Manual</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --navy:#1F3864; --navy-dark:#152847; --teal:#1F7A8C; --amber:#C65911;
+    --gold:#B08D57; --bg:#F2F2F2; --panel:#FFFFFF; --text:#20262E;
+    --muted:#6B7280; --line:#E2E5EA; --red:#B02418; --green:#2E7D32;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+
+  #signin-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .signin-card{ background:#fff; border-radius:10px; padding:32px 28px; max-width:360px; width:100%; box-shadow:0 2px 10px rgba(0,0,0,.08); }
+  .signin-card .brand{ font-weight:700; color:var(--teal); font-size:12px; letter-spacing:.5px; margin-bottom:4px; }
+  .signin-card h1{ color:var(--navy); font-size:21px; margin:0 0 6px; }
+  .signin-card .sub{ color:#666; font-size:13px; margin-bottom:20px; }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:11px; font-weight:700; color:var(--navy); margin-bottom:4px; text-transform:uppercase; }
+  .field input{ width:100%; padding:9px 11px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+  #signin-btn{ width:100%; background:var(--amber); color:#fff; border:none; padding:11px; border-radius:6px; font-size:14px; font-weight:700; cursor:pointer; margin-top:4px; }
+  #signin-btn:hover{ background:#a84b0d; }
+  .error-msg{ color:var(--red); font-size:12.5px; margin-top:8px; }
+
+  #editor-screen{ display:none; }
+  header{ background:var(--navy); color:#fff; padding:14px 22px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; position:sticky; top:0; z-index:5; }
+  header h1{ font-size:16px; margin:0; }
+  header .sub{ font-size:11.5px; color:#B7C6DE; }
+  header button{ background:transparent; border:1px solid #7C8CA8; color:#D9E4EF; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; }
+  header button:hover{ border-color:#fff; color:#fff; }
+
+  .toolbar{ background:#fff; border-bottom:1px solid var(--line); padding:10px 22px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; position:sticky; top:57px; z-index:4; }
+  .toolbar input{ padding:7px 10px; border:1px solid var(--line); border-radius:6px; font-size:13px; flex:1; min-width:180px; }
+  .toolbar select{ padding:7px 10px; border:1px solid var(--line); border-radius:6px; font-size:13px; }
+  .toolbar .stat{ font-size:12px; color:var(--muted); white-space:nowrap; }
+
+  .scene-list{ max-width:1100px; margin:0 auto; padding:16px 22px 60px; display:flex; flex-direction:column; gap:14px; }
+  .scene-card{ background:#fff; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:16px; display:grid; grid-template-columns:200px 1fr; gap:16px; }
+  .scene-card.deep-link-target{ animation:highlightPulse 2.2s ease-out 3; box-shadow:0 0 0 3px var(--amber); }
+  @keyframes highlightPulse{
+    0%,100%{ box-shadow:0 0 0 3px var(--amber); }
+    50%{ box-shadow:0 0 0 3px rgba(198,89,17,0.15); }
+  }
+  @media (max-width:700px){ .scene-card{ grid-template-columns:1fr; } }
+  .scene-thumb{ background:#0F1620; border-radius:6px; overflow:hidden; aspect-ratio:16/10; display:flex; align-items:center; justify-content:center; }
+  .scene-thumb img{ width:100%; height:100%; object-fit:contain; cursor:zoom-in; }
+  .scene-thumb .no-image{ color:#8FA0BC; font-size:11px; text-align:center; padding:10px; }
+  .replace-shot-wrap{ margin-top:8px; display:flex; flex-direction:column; gap:5px; width:100%; }
+  .replace-shot-wrap input[type="file"]{ font-size:10.5px; width:100%; max-width:200px; }
+  .replace-shot-btn{ background:#fff; color:var(--teal); border:1px solid var(--teal); padding:5px 8px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; width:100%; }
+  .replace-shot-btn:hover{ background:#EFF8FA; }
+  .replace-shot-btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .replace-shot-note{ font-size:11px; font-weight:600; }
+  .replace-shot-note.ok{ color:var(--green); }
+  .replace-shot-note.err{ color:var(--red); }
+  .scene-main .head{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  .scene-main .idnum{ font-size:11px; color:var(--muted); font-family:ui-monospace,monospace; }
+  .scene-main h3{ margin:0; font-size:14.5px; color:var(--navy-dark); }
+  .badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:600; text-transform:uppercase; }
+  .badge.screen{ background:#E8EEF9; color:var(--navy); }
+  .badge.text{ background:#EEF0F3; color:var(--muted); }
+  .scene-main textarea{ width:100%; min-height:90px; padding:10px; border:1px solid var(--line); border-radius:6px; font-size:13.5px; line-height:1.45; font-family:inherit; resize:vertical; }
+  .scene-main textarea.dirty{ border-color:var(--amber); background:#FFFBF5; }
+  .row-controls{ display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+  .row-controls audio{ height:32px; }
+  .row-controls .charcount{ font-size:11px; color:var(--muted); }
+  .save-btn{ background:var(--navy); color:#fff; border:none; padding:7px 14px; border-radius:6px; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .save-btn:hover{ background:var(--navy-dark); }
+  .save-btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .regen-btn{ background:#fff; color:var(--amber); border:1px solid var(--amber); padding:7px 14px; border-radius:6px; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .regen-btn:hover{ background:#FFF6EE; }
+  .regen-btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .regen-note{ font-size:11.5px; color:var(--amber); font-weight:600; }
+  .regen-error{ font-size:11.5px; color:var(--red); font-weight:600; }
+  .saved-note{ font-size:11.5px; color:var(--green); font-weight:600; }
+  .no-audio-note{ font-size:11.5px; color:var(--red); }
+  .loading-note{ text-align:center; color:#888; padding:60px 0; }
+</style>
+</head>
+<body>
+
+<div id="signin-screen">
+  <div class="signin-card">
+    <div class="brand">TIB SYSTEMS LLC · STAFF</div>
+    <h1>Scene Editor</h1>
+    <div class="sub">Edit narration text and check it against the current audio, scene by scene.</div>
+    <div class="field">
+      <label for="email-input">Email</label>
+      <input type="email" id="email-input" placeholder="you@tib-systems.com">
+    </div>
+    <div class="field">
+      <label for="password-input">Password</label>
+      <input type="password" id="password-input" placeholder="••••••••">
+    </div>
+    <button id="signin-btn">Sign In</button>
+    <div id="signin-error" class="error-msg" style="display:none;"></div>
+  </div>
+</div>
+
+<div id="editor-screen">
+  <header>
+    <div>
+      <h1>Scene Editor</h1>
+      <div class="sub">grcmanual_video_scenes · SAP Security, Fiori & GRC Manual</div>
+    </div>
+    <button id="signout-btn">Sign Out</button>
+  </header>
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Search title, section, or narration text…">
+    <select id="filterType">
+      <option value="">All types</option>
+      <option value="screen">Screen + Screenshot</option>
+      <option value="text_only">Text-only</option>
+    </select>
+    <span class="stat" id="statCount"></span>
+  </div>
+  <div class="scene-list" id="sceneList">
+    <div class="loading-note">Loading scenes…</div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://blfgwysgekfqhcafofhe.supabase.co";
+const SUPABASE_KEY = "sb_publishable_ThLetpd4hj49fjce-kXoFA_v4ghwIqV";
+const STORAGE_BUCKET = "grcmanual-video-screenshots";
+const NARRATION_BUCKET = "grcmanual-video-narration";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let SCENES = [];
+
+document.getElementById('signin-btn').addEventListener('click', signIn);
+document.getElementById('password-input').addEventListener('keydown', e => { if (e.key === 'Enter') signIn(); });
+
+async function signIn() {
+  const email = document.getElementById('email-input').value.trim();
+  const password = document.getElementById('password-input').value;
+  const errEl = document.getElementById('signin-error');
+  errEl.style.display = 'none';
+  if (!email || !password) {
+    errEl.textContent = 'Enter both your email and password.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('signin-btn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+  await enterEditor(data.user);
+}
+
+document.getElementById('signout-btn').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  document.getElementById('editor-screen').style.display = 'none';
+  document.getElementById('signin-screen').style.display = 'flex';
+});
+
+async function enterEditor(user) {
+  const errEl = document.getElementById('signin-error');
+  errEl.style.display = 'none';
+
+  let staff = false;
+  try {
+    const { data, error } = await sb.rpc('is_staff', { check_email: user.email });
+    if (error) throw error;
+    staff = !!data;
+  } catch (e) {
+    errEl.textContent = `Couldn't verify staff status: ${e.message || e}`;
+    errEl.style.display = 'block';
+    return;
+  }
+
+  if (!staff) {
+    errEl.textContent = "This tool is staff-only. That email isn't registered in staff_users.";
+    errEl.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('signin-screen').style.display = 'none';
+  document.getElementById('editor-screen').style.display = 'block';
+  await loadScenes();
+}
+
+function resolveImageUrl(caption) {
+  if (!caption) return null;
+  const match = caption.match(/([\w\-]+)\.+(?:png|jpg|jpeg)/i);
+  if (!match) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${match[1]}.jpg`;
+}
+function narrationAudioUrl(audioPath) {
+  if (!audioPath) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/${NARRATION_BUCKET}/${audioPath}`;
+}
+
+async function loadScenes() {
+  const listEl = document.getElementById('sceneList');
+  listEl.innerHTML = '<div class="loading-note">Loading scenes…</div>';
+  const { data, error } = await sb.from('grcmanual_video_scenes').select('*').order('sort_order', { ascending: true });
+  if (error) {
+    listEl.innerHTML = `<div class="loading-note">Failed to load: ${error.message}</div>`;
+    return;
+  }
+  SCENES = data;
+  renderList();
+  jumpToDeepLinkedScene();
+}
+
+function renderList() {
+  const listEl = document.getElementById('sceneList');
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const typeFilter = document.getElementById('filterType').value;
+
+  const filtered = SCENES.filter(s => {
+    if (typeFilter && s.type !== typeFilter) return false;
+    if (!q) return true;
+    return (s.title || '').toLowerCase().includes(q)
+        || (s.section || '').toLowerCase().includes(q)
+        || (s.narration || '').toLowerCase().includes(q);
+  });
+
+  document.getElementById('statCount').textContent = `${filtered.length} of ${SCENES.length} scenes`;
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="loading-note">No scenes match.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  filtered.forEach(s => listEl.appendChild(buildCard(s)));
+}
+
+function buildCard(s) {
+  const card = document.createElement('div');
+  card.className = 'scene-card';
+  card.id = `scene-card-${s.id}`;
+
+  // Thumbnail
+  const thumbCol = document.createElement('div');
+  const thumb = document.createElement('div');
+  thumb.className = 'scene-thumb';
+  const imgUrl = s.type === 'screen' ? resolveImageUrl(s.image_caption) : null;
+  let thumbImgEl = null;
+  if (imgUrl) {
+    const link = document.createElement('a');
+    link.href = imgUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.style.display = 'contents';
+    const img = document.createElement('img');
+    img.src = imgUrl;
+    img.alt = s.image_caption || '';
+    link.appendChild(img);
+    thumb.appendChild(link);
+    thumbImgEl = img;
+  } else {
+    thumb.innerHTML = `<div class="no-image">${s.type === 'screen' ? 'Screenshot not found' : 'Text-only scene — no screenshot'}</div>`;
+  }
+  thumbCol.appendChild(thumb);
+  card.appendChild(thumbCol);
+
+  // Replace-screenshot control — only offered when we can resolve a target
+  // filename (i.e. this is a screen-type scene with a usable image_caption).
+  const targetFilename = s.type === 'screen' && s.image_caption
+    ? (s.image_caption.match(/([\w\-]+)\.+(?:png|jpg|jpeg)/i) || [])[1]
+    : null;
+  if (targetFilename) {
+    const replaceWrap = document.createElement('div');
+    replaceWrap.className = 'replace-shot-wrap';
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+
+    const replaceBtn = document.createElement('button');
+    replaceBtn.className = 'replace-shot-btn';
+    replaceBtn.textContent = '🖼️ Replace Screenshot';
+
+    const replaceNote = document.createElement('span');
+    replaceNote.className = 'replace-shot-note';
+    replaceNote.style.display = 'none';
+
+    replaceBtn.addEventListener('click', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        replaceNote.className = 'replace-shot-note err';
+        replaceNote.textContent = 'Choose an image file first.';
+        replaceNote.style.display = 'inline';
+        return;
+      }
+      replaceBtn.disabled = true;
+      replaceBtn.textContent = 'Uploading…';
+      replaceNote.style.display = 'none';
+      try {
+        const { data: sessionData } = await sb.auth.getSession();
+        const token = sessionData && sessionData.session && sessionData.session.access_token;
+        if (!token) throw new Error('No active session — please sign in again.');
+
+        const res = await fetch('/api/replace-screenshot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type || 'image/jpeg',
+            Authorization: `Bearer ${token}`,
+            'X-Scene-Id': String(s.id),
+          },
+          body: file,
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
+
+        const freshUrl = `${imgUrl}?v=${Date.now()}`;
+        if (thumbImgEl) thumbImgEl.src = freshUrl;
+
+        replaceNote.className = 'replace-shot-note ok';
+        replaceNote.textContent = '✓ Screenshot replaced';
+        replaceNote.style.display = 'inline';
+        fileInput.value = '';
+      } catch (err) {
+        replaceNote.className = 'replace-shot-note err';
+        replaceNote.textContent = `Failed: ${err.message}`;
+        replaceNote.style.display = 'inline';
+      } finally {
+        replaceBtn.disabled = false;
+        replaceBtn.textContent = '🖼️ Replace Screenshot';
+      }
+    });
+
+    replaceWrap.appendChild(fileInput);
+    replaceWrap.appendChild(replaceBtn);
+    replaceWrap.appendChild(replaceNote);
+    thumbCol.appendChild(replaceWrap);
+  }
+
+  // Main
+  const main = document.createElement('div');
+  main.className = 'scene-main';
+
+  const head = document.createElement('div');
+  head.className = 'head';
+  head.innerHTML = `
+    <span class="idnum">#${s.id} · sort ${s.sort_order}</span>
+    <span class="badge ${s.type === 'screen' ? 'screen' : 'text'}">${s.type === 'screen' ? 'Screen' : 'Text-only'}</span>
+    <h3>${escapeHtml(s.title)}</h3>
+  `;
+  main.appendChild(head);
+
+  const textarea = document.createElement('textarea');
+  textarea.value = s.narration || '';
+  textarea.dataset.originalValue = s.narration || '';
+  main.appendChild(textarea);
+
+  const controls = document.createElement('div');
+  controls.className = 'row-controls';
+
+  const audioUrl = narrationAudioUrl(s.audio_path);
+  let audioEl = null;
+  if (audioUrl) {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `<audio controls preload="none" src="${audioUrl}"></audio>`;
+    audioEl = wrapper.firstElementChild;
+    controls.appendChild(audioEl);
+  } else {
+    controls.innerHTML += `<span class="no-audio-note">No audio generated for this scene yet</span>`;
+  }
+
+  const regenBtn = document.createElement('button');
+  regenBtn.className = 'regen-btn';
+  regenBtn.textContent = '🔊 Regenerate Audio';
+  controls.appendChild(regenBtn);
+
+  const regenNote = document.createElement('span');
+  regenNote.style.display = 'none';
+  controls.appendChild(regenNote);
+
+  regenBtn.addEventListener('click', async () => {
+    regenBtn.disabled = true;
+    regenBtn.textContent = 'Regenerating…';
+    regenNote.style.display = 'none';
+    try {
+      const { data: sessionData } = await sb.auth.getSession();
+      const token = sessionData && sessionData.session && sessionData.session.access_token;
+      if (!token) throw new Error('No active session — please sign in again.');
+
+      const res = await fetch('/api/regenerate-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sceneId: s.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
+
+      // Force the <audio> element to reload the freshly-overwritten file
+      // instead of a cached copy of the old one.
+      const freshUrl = `${audioUrl}?v=${Date.now()}`;
+      if (audioEl) {
+        audioEl.src = freshUrl;
+        audioEl.load();
+      } else {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `<audio controls preload="none" src="${freshUrl}"></audio>`;
+        audioEl = wrapper.firstElementChild;
+        controls.insertBefore(audioEl, regenBtn);
+      }
+
+      regenNote.className = 'regen-note';
+      regenNote.textContent = '✓ Regenerated';
+      regenNote.style.display = 'inline';
+    } catch (err) {
+      regenNote.className = 'regen-error';
+      regenNote.textContent = `Failed: ${err.message}`;
+      regenNote.style.display = 'inline';
+    } finally {
+      regenBtn.disabled = false;
+      regenBtn.textContent = '🔊 Regenerate Audio';
+    }
+  });
+
+  const charcount = document.createElement('span');
+  charcount.className = 'charcount';
+  charcount.textContent = `${textarea.value.length} chars`;
+  controls.appendChild(charcount);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'save-btn';
+  saveBtn.textContent = 'Save text';
+  saveBtn.disabled = true;
+  controls.appendChild(saveBtn);
+
+  const savedNote = document.createElement('span');
+  savedNote.className = 'saved-note';
+  savedNote.style.display = 'none';
+  savedNote.textContent = '✓ Saved';
+  controls.appendChild(savedNote);
+
+  textarea.addEventListener('input', () => {
+    const dirty = textarea.value !== textarea.dataset.originalValue;
+    textarea.classList.toggle('dirty', dirty);
+    saveBtn.disabled = !dirty;
+    savedNote.style.display = 'none';
+    charcount.textContent = `${textarea.value.length} chars`;
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    const { error } = await sb.from('grcmanual_video_scenes').update({ narration: textarea.value }).eq('id', s.id);
+    if (error) {
+      saveBtn.textContent = 'Failed — retry';
+      saveBtn.disabled = false;
+      alert(`Save failed: ${error.message}`);
+      return;
+    }
+    textarea.dataset.originalValue = textarea.value;
+    textarea.classList.remove('dirty');
+    saveBtn.textContent = 'Save text';
+    savedNote.style.display = 'inline';
+    // Update local cache so filtering/search reflects the edit without a reload
+    const cached = SCENES.find(x => x.id === s.id);
+    if (cached) cached.narration = textarea.value;
+  });
+
+  main.appendChild(controls);
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size:11px;color:var(--muted);margin-top:6px;';
+  hint.textContent = 'Save text updates only what displays on screen. Click Regenerate Audio afterward to make the voice match your edit.';
+  main.appendChild(hint);
+
+  card.appendChild(main);
+  return card;
+}
+
+function jumpToDeepLinkedScene() {
+  const params = new URLSearchParams(window.location.search);
+  const sceneId = params.get('scene');
+  if (!sceneId) return;
+
+  // Deep links always jump to the exact scene regardless of any active
+  // search/filter, so clear those first.
+  document.getElementById('searchInput').value = '';
+  document.getElementById('filterType').value = '';
+  renderList();
+
+  const target = document.getElementById(`scene-card-${sceneId}`);
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  target.classList.add('deep-link-target');
+  setTimeout(() => target.classList.remove('deep-link-target'), 6600);
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+document.getElementById('searchInput').addEventListener('input', renderList);
+document.getElementById('filterType').addEventListener('change', renderList);
+
+// Restore session on refresh
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session && data.session.user) {
+    await enterEditor(data.session.user);
+  }
+})();
+</script>
+</body>
+</html>
